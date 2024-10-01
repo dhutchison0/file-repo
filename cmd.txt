@@ -1,1 +1,175 @@
 cd ~/bin;/home/nutanix/.venvs/bin/bin/python3.9 -c "import env;from zeus.zookeeper_session import ZookeeperSession;from prism_client.proto.prism_auth_pb2 import UserRepository;zks=ZookeeperSession();urzn=zks.get('/appliance/physical/userrepository');urp=UserRepository();urp.ParseFromString(urzn);print(str(urp))"
+
+
+
+
+Search Anything
+Support & Insights
+All
+
+
+11
+
+1
+Doug	
+
+Home
+
+Insights Search
+
+Bookmarks
+
+Smart Support
+
+Health
+
+Assets
+
+Licenses
+
+Subscriptions
+
+Downloads
+
+Documentation
+
+Security
+
+Announcements
+
+Manage Contacts
+Home
+Knowledge Base
+Prism
+
+Bookmark
+
+
+Print to PDF
+
+Share
+iam-bootstrap role mapping migration failure during PCVM upgrade to 2024.1 due to legacy PE accounts with missing ROLE_CLUSTER_ADMIN
+KB article page
+Article #
+000016974
+Last modified on
+Aug 9th 2024
+Visibility
+Internal
+Summary:
+During the upgrade to PC version 2024.1, the iam-bootstrap process is expected to perform rolemapping migration. This process may fail if legacy PCVM was initially deployed on a version lower than euphrates-5.9 and gradually upgraded to 2024.1 due to such PCVM may contain PE accounts with missing ROLE_CLUSTER_ADMIN privilege.
+
+Versions affected:
+PC.2024.1.x
+
+Prism-Central
+Description:
+During the upgrade to PC version 2024.1, the iam-bootstrap process is expected to perform rolemapping migration. This process may fail if legacy PCVM was initially deployed on a version lower than euphrates-5.9 and gradually upgraded to 2024.1 due to such PCVM may contain PE accounts with missing ROLE_CLUSTER_ADMIN privilege.
+
+The IAM page on Admin Center may also fail with the error "An unknown error has occurred" and no data will be displayed. 
+
+iam_page_error
+
+ 
+
+Identification:
+
+iam-bootsrap pod is in a failed state; bootstrap log shows a signature similar to the following: "User and group role mapping data" line before failure contains one or more registered PE user accounts with only 2 roles: ROLE_CLUSTER_VIEWER and ROLE_INTER_CLUSTER. In the sample snippet below, accounts for PrismElement account with EntityName 000553a7-cb36-17c4-0000-0000000xxxxx is affected:
+nutanix@PCVM:~$ sudo kubectl logs -l app=iam-bootstrap -n ntnx-base --tail=90000
+...
+I0604 05:53:03.526927       9 rolemappingutils.go:41] User and group role mapping data: [{UUID:xxxxxxxx-aaaa-bbbb-cccc-dddddddddddd EntityName:000553a7-cb36-17c4-0000-0000000xxxxx RoleMappings:[ROLE_CLUSTER_VIEWER ROLE_INTER_CLUSTER] EntityType:user} [...]
+I0604 05:53:03.575937       9 rolemappingutils.go:44] AuthZ - Updating users and user groups to their associated ACPs - Started
+...
+F0604 06:53:03.877011       9 bootstrap_utils.go:247] Failed to migrate IAM rolemapping data : [POST /proxy] proxy (status 405): {}
+
+iam-themis log contains an error "Not allowed to update this Access Policy as it is immutable" at the timestamp of bootstrap failure.
+nutanix@PCVM:~$ sudo kubectl logs -l app=iam-themis -n ntnx-base --tail=90000
+...
+timestamp="2024-06-04T11:53:03Z" severity=error message="Served request POST:/api/iam/authz/v1/proxy with error Error response with status code 405, message Not allowed to update this Access Policy as it is immutable" function_name=github.com/nutanix-core/iam-themis/services/server/modelutil.HandleError file_name="/go/src/github.com/nutanix-core/iam-themis/services/server/modelutil/common.go:147" line_no=147
+...
+
+PCVM had a long history of upgrades and was initially deployed on any version older than euphrates-5.9
+nutanix@PCVM:~$ cat config/upgrade.history
+Thu, 18 Feb 2016 00:04:22 el6-release-danube-4.6-stable-f68f1207bddb698b8364a51342e131fcd68424cb
+Fri, 15 Apr 2016 21:55:27 el6-release-danube-4.6.1-stable-671fdaa345dd93a4aa489185684caa41a57c860d
+Thu, 27 Apr 2017 01:50:00 el6-release-euphrates-5.1-stable-c669071d1e8f8aa8e560e45a07d528a384812c90
+Sun, 03 Dec 2017 12:54:00 el7.3-release-euphrates-5.5-stable-cd680bd9d2fba80aadaacd9b619ba88f985ce384
+Mon, 09 Apr 2018 16:30:46 el7.3-release-euphrates-5.5.0.6-stable-14bd63735db09b1c9babdaaf48d062723137fc46
+Wed, 20 Feb 2019 20:16:26 el7.3-release-euphrates-5.8.2-stable-603410d4c1689be90c73f769173138485b67df57
+Wed, 20 Mar 2019 20:04:44 el7.3-release-euphrates-5.10.2-stable-42b116301be8a3547b5e863b506185bc6db89478
+[....]
+Tue, 28 Nov 2023 11:50:17 el7.3-release-fraser-6.1-stable-8461cca35c9e8eb624d5c03d46cc024b846768ac
+Thu, 01 Feb 2024 12:56:10 el7.3-release-fraser-6.1-stable-d27a8c7e343c6f56c5ce8e7087d3ab9bd6474685
+Thu, 23 May 2024 09:12:43 el8.5-release-fraser-2024.1-stable-d77f9add310475446ea544490d25e8920b4b113f (pc.2024.1)
+nutanix@PCVM:~$
+
+
+Solution:
+Workaround:
+
+To remediate the failure, we need to add missing permissions to legacy PE accounts and re-run the bootstrap script.
+
+Inspect current accounts on PCVM via the command below and identify PE accounts that are missing ROLE_CLUSTER_ADMIN.
+nutanix@PCVM:~$ cd ~/bin;/home/nutanix/.venvs/bin/bin/python3.9 -c "import env;from zeus.zookeeper_session import ZookeeperSession;from prism_client.proto.prism_auth_pb2 import UserRepository;zks=ZookeeperSession();urzn=zks.get('/appliance/physical/userrepository');urp=UserRepository();urp.ParseFromString(urzn);print(str(urp))"
+
+sample affected PE account, notice ROLE_CLUSTER_ADMIN missing and creation_time_usec shows time when PC was running release older than euphrates-5.9:
+...
+user {
+  username: "000553a7-cb36-17c4-0000-0000000xxxxx"	<<< PE account
+  name {
+    first_name: "PrismElement"
+    last_name: "Nutanix"
+  }
+  password_hash: "[REDACTED]"
+  role: ROLE_CLUSTER_VIEWER
+  role: ROLE_INTER_CLUSTER			<<< ROLE_CLUSTER_ADMIN missing
+  status: ENABLED
+  creation_time_usecs: 1517278967811000		<<< $ date -d@1517278967.811000 -u > Tue Jan 30 02:22:47 UTC 2018
+  last_updated_by_user: "admin"
+  locale: "en-US"
+  region: "en-US"
+}
+...
+
+Modify the command below before execution. Replace un='REPLACE_UUID_HERE' with the PE UUID identified in step 1. I.e., un='000553a7-cb36-17c4-0000-0000000xxxxx' for example above 
+nutanix@PCVM:~$ cd ~/bin;/home/nutanix/.venvs/bin/bin/python3.9 -c "un='REPLACE_UUID_HERE';import env;from zeus.zookeeper_session import ZookeeperSession;from prism_client.proto.prism_auth_pb2 import UserRepository;zks=ZookeeperSession();urzn=zks.get('/appliance/physical/userrepository');urp=UserRepository();urp.ParseFromString(urzn);[(u.role.append(2)) for u in urp.user if u.username==un];urp.logical_timestamp+1;print(zks.set('/appliance/physical/userrepository',urp.SerializeToString()))"
+
+Run the command from step 1 again to inspect the account after the edit, confirm ROLE_CLUSTER_ADMIN added.
+user {
+  username: "000553a7-cb36-17c4-0000-0000000xxxxx"
+  name {
+    first_name: "PrismElement"
+    last_name: "Nutanix"
+  }
+  password_hash: "[REDACTED]"
+  role: ROLE_CLUSTER_VIEWER
+  role: ROLE_INTER_CLUSTER
+  role: ROLE_CLUSTER_ADMIN			<<<<<<<<<<<<< ROLE_CLUSTER_ADMIN added
+  status: ENABLED
+  creation_time_usecs: 1517278967811000
+  last_updated_by_user: "admin"
+  locale: "en-US"
+  region: "en-US"
+}
+
+Repeat steps 2-3 for every PE account identified in step 1
+Run iam-bootstrap and verify it is completed successfully; refer to KB10638 for details about iam-bootstrap 
+nutanix@PCVM$ bash /home/nutanix/cluster/bin/iam_bootstrap.sh
+
+ 
+
+Note: To prevent this type of failure before upgrading to 2024.1, add missing permissions before starting the upgrade while PCVM is still running on 2023.x or 2022.6.x using the same steps 1-4 from the previous section, skip step 5. Since this operation performed on 2023.x or 2022.6.x (before migration to python3) we need to change python path in the commands as follows
+
+In commands on steps 1 and 2 replace 
+
+cd ~/bin;/home/nutanix/.venvs/bin/bin/python3.9
+
+with
+
+cd ~/bin;python
+
+
+Internal Comments:
+
+Feedback
+Was this article helpful?
