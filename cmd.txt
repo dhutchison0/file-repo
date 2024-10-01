@@ -1,0 +1,1 @@
+cd ~/bin;/home/nutanix/.venvs/bin/bin/python3.9 -c "import env;from zeus.zookeeper_session import ZookeeperSession;from prism_client.proto.prism_auth_pb2 import UserRepository;zks=ZookeeperSession();urzn=zks.get('/appliance/physical/userrepository');urp=UserRepository();urp.ParseFromString(urzn);print(str(urp))"
