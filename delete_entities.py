@@ -11,7 +11,18 @@ import string
 import sys
 import uuid
 
-import env
+try:
+  import os
+  SERVICEABILITY_VENV_PATH = "/home/nutanix/.venvs/serviceability/bin/python3.9"
+  if os.path.exists(SERVICEABILITY_VENV_PATH):
+    if os.environ.get("PYTHON_TARGET_VERSION") is None:
+      os.environ["PYTHON_TARGET_VERSION"] = "3.9"
+    if os.environ.get("PYTHON_TARGET_PATH") is None:
+      os.environ["PYTHON_TARGET_PATH"] = SERVICEABILITY_VENV_PATH
+  import env
+except ImportError:
+  pass
+
 import gflags
 
 from google.protobuf.text_format import Merge
@@ -111,11 +122,11 @@ class DeleteEntities(object):
     for e_id, cas_value in self.entity_data_list:
       delete_args.append(self.delete_entity_arg(e_id, cas_value))
     arg.entity_list.extend(delete_args)
-    print "Deleting %s entities" % len(delete_args)
+    print ("Deleting %s entities" % len(delete_args))
     try:
       self.insights.BatchDeleteEntities(arg)
     except Exception as error:
-      print error.message
+      print (error.message)
 
   def run(self):
     """
@@ -126,7 +137,7 @@ class DeleteEntities(object):
       if not self.entity_data_list:
         break
       self.batch_delete()
-    print "Deleted all entities"
+    print ("Deleted all entities")
 
 
 if __name__ == "__main__":
