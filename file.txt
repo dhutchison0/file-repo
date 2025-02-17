@@ -1,1 +1,0 @@
-service=/appliance/logical/pyleaders/catalog_master; id=$(zkcat $service/`zkls $service| head -1`); zeus_config_printer | grep -B 15 " uuid: \"$id\"" | grep "service_vm_external_ip"| awk '{print "Catalog Leader ==>", $2}'
